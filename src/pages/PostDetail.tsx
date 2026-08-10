@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { ArrowLeft, CalendarDays, Clock3, FolderOpen, PenLine } from "lucide-react"
 import type { Post } from "@/data/posts"
-import { fetchPost, checkApi, type PostMeta } from "@/lib/api"
+import { fetchPost, getStoreMode, type PostMeta } from "@/lib/api"
 import { Markdown } from "@/components/Markdown"
 
 export function PostDetail({ slug, posts }: { slug: string; posts: PostMeta[] }) {
@@ -19,8 +19,8 @@ export function PostDetail({ slug, posts }: { slug: string; posts: PostMeta[] })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-    checkApi().then((ok) => {
-      if (!cancelled) setCanEdit(ok)
+    getStoreMode().then((m) => {
+      if (!cancelled) setCanEdit(m !== "static")
     })
     return () => {
       cancelled = true

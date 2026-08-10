@@ -9,13 +9,15 @@ import {
   Trash2,
 } from "lucide-react"
 import {
-  checkApi,
   createPost,
   deletePost,
   fetchPost,
+  getStoreMode,
   parseMarkdown,
   updatePost,
+  type StoreMode,
 } from "@/lib/api"
+import { getToken, setToken } from "@/lib/github"
 import { Markdown } from "@/components/Markdown"
 
 const inputCls =
@@ -23,7 +25,8 @@ const inputCls =
 const labelCls = "mb-1.5 block text-sm font-medium text-foreground/90"
 
 export function Write({ editSlug }: { editSlug?: string }) {
-  const [apiOk, setApiOk] = useState<boolean | null>(null)
+  const [storeMode, setStoreMode] = useState<StoreMode | null>(null)
+  const [token, setTokenInput] = useState(getToken())
   const [title, setTitle] = useState("")
   const [slug, setSlug] = useState("")
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
@@ -38,12 +41,12 @@ export function Write({ editSlug }: { editSlug?: string }) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    checkApi().then(setApiOk)
+    getStoreMode().then(setStoreMode)
   }, [])
 
   // 编辑模式：加载已有文章
   useEffect(() => {
-    if (!editSlug || !apiOk) return
+    if (!editSlug || !storeMode || storeMode === "static") return
     fetchPost(editSlug).then((post) => {
       if (!post) return
       setTitle(post.title)
@@ -54,7 +57,7 @@ export function Write({ editSlug }: { editSlug?: string }) {
       setExcerpt(post.excerpt)
       setContent(post.content)
     })
-  }, [editSlug, apiOk])
+  }, [editSlug, storeMode])
 
   /** 导入 .md 文件：交给后端解析 frontmatter 后回填表单 */
   const handleImport = async (file: File) => {
@@ -79,6 +82,13 @@ export function Write({ editSlug }: { editSlug?: string }) {
     if (!title.trim()) {
       setMessage({ type: "err", text: "请填写标题" })
       return
+    }
+    if (storeMode === "github") {
+      if (!token.trim()) {
+        setMessage({ type: "err", text: "请先填写 GitHub Token" })
+        return
+      }
+      setToken(token.trim())
     }
     setSaving(true)
     setMessage(null)
@@ -114,16 +124,16 @@ export function Write({ editSlug }: { editSlug?: string }) {
     }
   }
 
-  // 后端不可用（纯静态部署）时提示
-  if (apiOk === false) {
+  // 静态模式（本地后端和 GitHub 都不可达）时提示
+  if (storeMode === "static") {
     return (
       <div className="py-20 text-center">
         <p className="mb-2 text-5xl">🔌</p>
-        <h1 className="mb-2 text-xl font-semibold">后端服务未启动</h1>
+        <h1 className="mb-2 text-xl font-semibold">存储服务不可用</h1>
         <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-muted-foreground">
-          写作功能需要后端 API 支持。请在项目目录运行
+          本地运行
           <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-primary">npm run server</code>
-          后刷新页面。
+          ，或确保能访问 GitHub API 后刷新页面。
         </p>
         <a
           href="#/"
@@ -135,7 +145,7 @@ export function Write({ editSlug }: { editSlug?: string }) {
     )
   }
 
-  if (apiOk === null) {
+  if (storeMode === null) {
     return (
       <div className="flex justify-center py-24">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -155,6 +165,49 @@ export function Write({ editSlug }: { editSlug?: string }) {
         </a>
         <h1 className="text-lg font-semibold">{editSlug ? "编辑文章" : "写新文章"}</h1>
       </div>
+
+      {/* GitHub 模式：Token 配置 */}
+      {storeMode === "github" && (
+        <div className="mb-6 rounded-xl border border-border/70 bg-card/60 p-4">
+          <p className="mb-2 text-sm font-medium">
+            GitHub 存储模式
+            <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+              文章将保存到 GitHub 仓库
+            </span>
+          </p>
+          {token ? (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                ✓ Token 已配置（仅保存在本浏览器）
+              </p>
+              <button
+                onClick={() => {
+                  setToken("")
+                  setTokenInput("")
+                }}
+                className="text-xs text-muted-foreground underline hover:text-destructive"
+              >
+                清除 Token
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <input
+                type="password"
+                className={inputCls}
+                value={token}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="粘贴 GitHub Personal Access Token"
+              />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                在 GitHub → Settings → Developer settings → Personal access tokens (fine-grained)
+                创建，仅授权 Personal 仓库的 <b>Contents: Read and write</b> 权限。
+                Token 只存在本浏览器 localStorage，保存文章时才会用到。
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 导入 Markdown 文件 */}
       <div
