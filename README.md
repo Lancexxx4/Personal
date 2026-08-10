@@ -67,5 +67,13 @@ draft: false
 
 ## 部署
 
-- **GitHub Pages**：push 到 main 分支即自动构建部署（见 `.github/workflows/deploy.yml`），为只读静态版
+- **GitHub Pages**：push 到 main 分支即自动构建部署（见 `.github/workflows/deploy.yml`）
 - **完整后端版**：在任何 Node 20+ 服务器上 `npm ci && npm run build && npm run server`
+
+## 存储模式（自动探测）
+
+| 模式 | 触发条件 | 读写能力 |
+| ---- | -------- | -------- |
+| 本地 API | `npm run server` 运行中 | 读写（本地 md 文件） |
+| GitHub | 纯静态部署（如 Pages），可访问 GitHub API | 读公开；写作时填入 fine-grained Token（Contents: Read and write，仅存浏览器）即可直接提交到仓库 |
+| 静态回退 | 以上均不可用 | 只读（内置数据） |
