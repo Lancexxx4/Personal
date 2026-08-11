@@ -15,34 +15,43 @@ export interface PostInput {
   content?: string
 }
 
-/** 存储模式：本地 Express API → GitHub 仓库 → 内置静态数据 */
-export type StoreMode = "api" | "github" | "static"
+/**
+ * 存储模式（按优先级自动探测）：
+ * - api：本地 Express 后端（npm run server），读写本地 md 文件
+ * - github：浏览器可直连 GitHub API，读公开、写需 Token
+ * - pages：同源静态文件（构建时导出的 posts/ 目录），只读但永远可达
+ * - static：内置打包数据，最后兜底
+ */
+export type StoreMode = "api" | "github" | "pages" | "static"
 
 let mode: StoreMode | null = null
 
 export async function getStoreMode(): Promise<StoreMode> {
   if (mode) return mode
-  // 1. 本地后端
   try {
     const res = await fetch("/api/posts", { signal: AbortSignal.timeout(3000) })
-    if (res.ok) {
-      mode = "api"
-      return mode
-    }
+    if (res.ok) return (mode = "api")
   } catch {
     /* 无本地后端 */
   }
-  // 2. GitHub 仓库
   try {
     await ghListPosts()
-    mode = "github"
-    return mode
+    return (mode = "github")
   } catch {
-    /* GitHub 不可达 */
+    /* GitHub API 不可达 */
   }
-  // 3. 静态回退
-  mode = "static"
-  return mode
+  try {
+    const res = await fetch("posts/index.json", { cache: "no-store" })
+    if (res.ok) return (mode = "pages")
+  } catch {
+    /* 无静态导出 */
+  }
+  return (mode = "static")
+}
+
+/** 是否可写作（编辑按钮/写作页可用） */
+export function canWrite(m: StoreMode): boolean {
+  return m === "api" || m === "github"
 }
 
 /** 兼容旧调用 */
@@ -65,10 +74,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
+/** 同源静态文件：md 原文 → Post */
+function postFromRaw(slug: string, raw: string): Post {
+  const { data, content } = parseFrontmatter(raw)
+  return {
+    slug,
+    title: data.title || slug,
+    date: data.date || "",
+    category: data.category || "随笔",
+    tags: data.tags || [],
+    excerpt:
+      data.excerpt || content.replace(/[#>*`\-\[\]|]/g, "").trim().slice(0, 120),
+    readingTime: Math.max(1, Math.round(content.replace(/\s/g, "").length / 400)),
+    content,
+  }
+}
+
+async function pagesGetPost(slug: string): Promise<Post | null> {
+  try {
+    const res = await fetch(`posts/${encodeURIComponent(slug)}.md`, { cache: "no-store" })
+    if (!res.ok) return null
+    return postFromRaw(slug, await res.text())
+  } catch {
+    return null
+  }
+}
+
 export async function fetchPosts(): Promise<PostMeta[]> {
   const m = await getStoreMode()
   if (m === "api") return request<PostMeta[]>("/api/posts")
   if (m === "github") return ghListPosts()
+  if (m === "pages") return (await request<PostMeta[]>("posts/index.json", { cache: "no-store" }))
   return staticPosts.map(({ content: _c, ...meta }) => meta)
 }
 
@@ -82,6 +118,7 @@ export async function fetchPost(slug: string): Promise<Post | null> {
     }
   }
   if (m === "github") return ghGetPost(slug)
+  if (m === "pages") return pagesGetPost(slug)
   return staticPosts.find((p) => p.slug === slug) ?? null
 }
 
@@ -91,7 +128,7 @@ export async function createPost(input: PostInput & { content: string }): Promis
     return request<Post>("/api/posts", { method: "POST", body: JSON.stringify(input) })
   }
   if (m === "github") return ghSavePost(input)
-  throw new Error("当前为静态模式，无法保存")
+  throw new Error("当前环境不支持写作：请本地运行 npm run server，或确保浏览器能访问 GitHub API 后刷新")
 }
 
 export async function updatePost(
@@ -106,7 +143,7 @@ export async function updatePost(
     })
   }
   if (m === "github") return ghSavePost({ title: "", ...input } as PostInput & { content: string }, slug)
-  throw new Error("当前为静态模式，无法保存")
+  throw new Error("当前环境不支持写作：请本地运行 npm run server，或确保浏览器能访问 GitHub API 后刷新")
 }
 
 export async function deletePost(slug: string): Promise<void> {
@@ -116,7 +153,7 @@ export async function deletePost(slug: string): Promise<void> {
     return
   }
   if (m === "github") return ghDeletePost(slug)
-  throw new Error("当前为静态模式，无法删除")
+  throw new Error("当前环境不支持删除：请本地运行 npm run server，或确保浏览器能访问 GitHub API 后刷新")
 }
 
 /** 解析导入的 Markdown（api 模式走后端，其余模式本地解析） */

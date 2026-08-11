@@ -143,17 +143,24 @@ export function Write({ editSlug }: { editSlug?: string }) {
     }
   }
 
-  // 静态模式（本地后端和 GitHub 都不可达）时提示
-  if (storeMode === "static") {
+  // 只读模式（GitHub API 不可达且无本地后端）时给出指引
+  if (storeMode === "static" || storeMode === "pages") {
     return (
       <div className="py-20 text-center">
         <p className="mb-2 text-5xl">🔌</p>
-        <h1 className="mb-2 text-xl font-semibold">存储服务不可用</h1>
-        <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-muted-foreground">
-          本地运行
-          <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-primary">npm run server</code>
-          ，或确保能访问 GitHub API 后刷新页面。
-        </p>
+        <h1 className="mb-2 text-xl font-semibold">当前为只读模式</h1>
+        <div className="mx-auto mb-6 max-w-md text-left text-sm leading-relaxed text-muted-foreground">
+          <p className="mb-3">你的浏览器无法访问 GitHub API，在线写作不可用。可选方案：</p>
+          <p className="mb-2">
+            <b className="text-foreground">方案一（推荐）</b>：本地运行
+            <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-primary">npm run server</code>
+            后访问 localhost:3001 写作，写完 git push 即自动发布
+          </p>
+          <p>
+            <b className="text-foreground">方案二</b>：开启网络代理让浏览器能访问
+            api.github.com，刷新后填 Token 即可在线写作
+          </p>
+        </div>
         <a
           href="#/"
           className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"

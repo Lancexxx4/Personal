@@ -20,7 +20,7 @@ export function PostDetail({ slug, posts }: { slug: string; posts: PostMeta[] })
         if (!cancelled) setLoading(false)
       })
     getStoreMode().then((m) => {
-      if (!cancelled) setCanEdit(m !== "static")
+      if (!cancelled) setCanEdit(m === "api" || m === "github")
     })
     return () => {
       cancelled = true

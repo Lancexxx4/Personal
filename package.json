@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node server/export-static.mjs",
     "build": "tsc -b && vite build",
     "server": "node server/index.js",
     "seed": "node server/seed.mjs",
