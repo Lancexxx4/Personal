@@ -37,6 +37,8 @@ export function Write({ editSlug }: { editSlug?: string }) {
   const [content, setContent] = useState("")
   const [showPreview, setShowPreview] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -114,20 +116,30 @@ export function Write({ editSlug }: { editSlug?: string }) {
   }
 
   const handleDelete = async () => {
-    if (!editSlug) return
-    if (!window.confirm(`确定删除文章「${title}」吗？此操作不可恢复。`)) return
+    if (!editSlug || deleting) return
+    // 第一步：进入确认状态（不用 window.confirm，内嵌页面会被拦截）
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      return
+    }
     if (storeMode === "github") {
       if (!token.trim()) {
         setMessage({ type: "err", text: "请先填写 GitHub Token" })
+        setConfirmingDelete(false)
         return
       }
       setToken(token.trim())
     }
+    setDeleting(true)
+    setMessage(null)
     try {
       await deletePost(editSlug)
+      // 删除成功，自动跳转回首页
       window.location.hash = "#/"
     } catch (e) {
       setMessage({ type: "err", text: `删除失败：${(e as Error).message}` })
+      setDeleting(false)
+      setConfirmingDelete(false)
     }
   }
 
@@ -328,13 +340,32 @@ export function Write({ editSlug }: { editSlug?: string }) {
             {editSlug ? "保存修改" : "发布文章"}
           </button>
           {editSlug && (
-            <button
-              onClick={handleDelete}
-              className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-5 py-2.5 text-sm text-destructive transition-colors hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" />
-              删除文章
-            </button>
+            <>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className={`inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm transition-colors disabled:opacity-60 ${
+                  confirmingDelete
+                    ? "bg-destructive font-medium text-destructive-foreground hover:opacity-90"
+                    : "border border-destructive/40 text-destructive hover:bg-destructive/10"
+                }`}
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {deleting ? "删除中…" : confirmingDelete ? "再点一次确认删除" : "删除文章"}
+              </button>
+              {confirmingDelete && !deleting && (
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  className="text-sm text-muted-foreground underline hover:text-foreground"
+                >
+                  取消
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
