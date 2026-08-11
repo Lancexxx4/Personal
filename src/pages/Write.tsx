@@ -116,6 +116,13 @@ export function Write({ editSlug }: { editSlug?: string }) {
   const handleDelete = async () => {
     if (!editSlug) return
     if (!window.confirm(`确定删除文章「${title}」吗？此操作不可恢复。`)) return
+    if (storeMode === "github") {
+      if (!token.trim()) {
+        setMessage({ type: "err", text: "请先填写 GitHub Token" })
+        return
+      }
+      setToken(token.trim())
+    }
     try {
       await deletePost(editSlug)
       window.location.hash = "#/"

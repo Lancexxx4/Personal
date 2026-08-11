@@ -72,7 +72,9 @@ function toPost(slug: string, raw: string): Post {
 }
 
 async function ghFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init)
+  // no-store：GitHub API 未认证响应带 max-age=60 的 CDN 缓存，
+  // 不禁用会导致删除/新建后列表长时间不刷新，看起来像"操作没生效"
+  const res = await fetch(url, { cache: "no-store", ...init })
   if (!res.ok) {
     let msg = `${res.status}`
     try {
