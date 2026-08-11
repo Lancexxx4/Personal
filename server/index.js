@@ -11,11 +11,40 @@ import {
   deletePost,
   parseMarkdownImport,
 } from "./store.js"
+import { publish } from "./publish.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const PORT = process.env.PORT || 3001
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ""
+const AUTO_PUBLISH = process.env.AUTO_PUBLISH !== "0"
+
+// ---- 自动发布：写操作后去抖 5 秒提交并推送 ----
+let publishTimer = null
+let publishing = false
+let pendingAgain = false
+
+function schedulePublish(action) {
+  if (!AUTO_PUBLISH) return
+  clearTimeout(publishTimer)
+  publishTimer = setTimeout(async () => {
+    if (publishing) {
+      pendingAgain = true
+      return
+    }
+    publishing = true
+    try {
+      publish(`docs: ${action}`)
+    } catch (e) {
+      console.log("[publish] 发布异常:", e.message)
+    }
+    publishing = false
+    if (pendingAgain) {
+      pendingAgain = false
+      schedulePublish("继续更新博客文章")
+    }
+  }, 5000)
+}
 
 app.use(cors())
 app.use(express.json({ limit: "5mb" }))
@@ -52,6 +81,7 @@ app.post("/api/posts", guard, (req, res) => {
       : req.body
     if (!input?.title) return res.status(400).json({ error: "缺少标题" })
     const post = createPost(input)
+    schedulePublish(`新建文章 ${post.title}`)
     res.status(201).json(post)
   } catch (e) {
     res.status(409).json({ error: e.message })
@@ -67,11 +97,13 @@ app.post("/api/posts/parse", guard, (req, res) => {
 app.put("/api/posts/:slug", guard, (req, res) => {
   const post = updatePost(req.params.slug, req.body || {})
   if (!post) return res.status(404).json({ error: "文章不存在" })
+  schedulePublish(`更新文章 ${post.title}`)
   res.json(post)
 })
 
 app.delete("/api/posts/:slug", guard, (req, res) => {
   if (!deletePost(req.params.slug)) return res.status(404).json({ error: "文章不存在" })
+  schedulePublish(`删除文章 ${req.params.slug}`)
   res.json({ ok: true })
 })
 
@@ -94,6 +126,7 @@ if (fs.existsSync(distDir)) {
 app.listen(PORT, () => {
   console.log(`[lance-blog] API + 静态服务已启动: http://localhost:${PORT}`)
   console.log(`[lance-blog] 文章目录: ${path.join(__dirname, "data", "posts")}`)
+  console.log(`[lance-blog] 自动发布: ${AUTO_PUBLISH ? "开启（保存后自动提交并推送到 GitHub）" : "关闭"}`)
   if (!ADMIN_TOKEN) {
     console.log("[lance-blog] 提示: 未设置 ADMIN_TOKEN，写接口未加保护（仅限本机使用）")
   }

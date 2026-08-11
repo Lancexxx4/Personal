@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "server": "node server/index.js",
     "seed": "node server/seed.mjs",
+    "publish": "node server/publish.mjs",
     "start": "node server/index.js",
     "lint": "eslint .",
     "preview": "vite preview"

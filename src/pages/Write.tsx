@@ -154,7 +154,7 @@ export function Write({ editSlug }: { editSlug?: string }) {
           <p className="mb-2">
             <b className="text-foreground">方案一（推荐）</b>：本地运行
             <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-primary">npm run server</code>
-            后访问 localhost:3001 写作，写完 git push 即自动发布
+            后访问 localhost:3001 写作，保存后自动发布上线（无需手动 git 操作）
           </p>
           <p>
             <b className="text-foreground">方案二</b>：开启网络代理让浏览器能访问
